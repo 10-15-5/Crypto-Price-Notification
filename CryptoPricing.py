@@ -3,8 +3,8 @@ import time
 from pycoingecko import CoinGeckoAPI
 
 # global variables
-bot_token = "Add you Telegram bot token here"
-chat_id = "Add your Telegram chat ID here"
+bot_token = "1594295411:AAE5hoqjmN7TdqPTnnwzZAOH2OlO0-z6T4E"
+chat_id = "1510700911"
 threshold = 20000   # You will get a special message if the price goes below this number
 time_interval = 3600  # in seconds
 
@@ -32,7 +32,7 @@ def send_message(chat_id, msg):
 def format_msg(pricelisting):
     difflisting = []
     for i in range(len(pricelisting)):
-        diff = (pricelisting[i][1] - pricelisting[i][0])
+        diff = round(pricelisting[i][1] - pricelisting[i][0], 2)
         difflisting.append(diff)
 
     msg = f'Here is your hourly crypto update:' \
@@ -65,8 +65,8 @@ def main():
             msg = format_msg(pricelistings)
             send_message(chat_id=chat_id, msg=msg)
             # empty the price_list
-            for i in range(len(pricelisting)):
-                del pricelisting[i][0]
+            for i in range(len(pricelistings)):
+                del pricelistings[i][0]
 
         # fetch the price for every dash minutes
         time.sleep(time_interval)
