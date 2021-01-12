@@ -5,7 +5,7 @@ import time
 api_key = "Add your Coinmarket API key here"
 bot_token = "Add your Telegram bot token here"
 chat_id = "Add your Telegram chat ID here"
-threshold = 20000   # You will be notified immediately if the price goes below this number
+threshold = 20000   # You will get a special message if the price goes below this number
 time_interval = 3600  # in seconds
 
 
