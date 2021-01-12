@@ -1,31 +1,19 @@
 import requests
 import time
+from pycoingecko import CoinGeckoAPI
 
 # global variables
-api_key = "Add your Coinmarket API key here"
 bot_token = "Add your Telegram bot token here"
-chat_id = "Add your Telegram chat ID here"
+chat_id = "Add your chat ID here"
 threshold = 20000   # You will get a special message if the price goes below this number
 time_interval = 3600  # in seconds
 
 
 def get_crypto_price():
-    url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest'
-    headers = {
-        'Accepts': 'application/json',
-        'X-CMC_PRO_API_KEY': api_key
-    }
-    parameters = {
-        'convert': 'EUR'
-    }
 
-    # make a request to the coinmarketcap api
-    response = requests.get(url, headers=headers, params=parameters)
-    response_json = response.json()
-
-    # extract the bitcoin price from the json data
-    btc_price = response_json['data'][0]
-    return btc_price['quote']['EUR']['price']
+    geckoAPI = CoinGeckoAPI()
+    response = geckoAPI.get_price(ids="bitcoin", vs_currencies="eur")
+    return response["bitcoin"]["eur"]
 
 
 # fn to send_message through telegram
@@ -41,7 +29,7 @@ def format_msg(price_list):
     pricesecond = round(price_list[1], 2)
     diff = round(pricesecond - pricefirst, 2)
 
-    msg = f'The price of Btc at the start was €{pricefirst} and the price at the end was €{pricesecond}! The price of Btc changed €{diff} during this time!'
+    msg = f'The price of Btc at the start was {pricefirst}€ and the price at the end was {pricesecond}€! The price of Btc changed {diff}€ during this time!'
 
     return msg
 
