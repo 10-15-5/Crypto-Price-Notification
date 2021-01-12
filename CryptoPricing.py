@@ -3,9 +3,8 @@ import time
 from pycoingecko import CoinGeckoAPI
 
 # global variables
-bot_token = "Insert your bot token here"
+bot_token = "Insert your Telegram bot token here"
 chat_id = "Insert you Telegram chat ID here"
-threshold = 20000   # You will get a special message if the price goes below this number
 time_interval = 3600  # in seconds
 
 
@@ -55,10 +54,6 @@ def main():
     # infinite loop
     while True:
         pricelistings = get_crypto_price(btcpricelist, ethpricelist, ltcpricelist, xtzpricelist, xmrpricelist)
-
-        # if the price falls below threshold, send an immediate msg
-        """if price < threshold:
-            send_message(chat_id=chat_id, msg=f'BTC Price Drop Alert: {price}')"""
 
         # send last 6 btc price
         if len(pricelistings[0]) >= 2:
