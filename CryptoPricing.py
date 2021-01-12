@@ -3,8 +3,8 @@ import time
 from pycoingecko import CoinGeckoAPI
 
 # global variables
-bot_token = "1594295411:AAE5hoqjmN7TdqPTnnwzZAOH2OlO0-z6T4E"
-chat_id = "1510700911"
+bot_token = "Insert your bot token here"
+chat_id = "Insert you Telegram chat ID here"
 threshold = 20000   # You will get a special message if the price goes below this number
 time_interval = 3600  # in seconds
 
