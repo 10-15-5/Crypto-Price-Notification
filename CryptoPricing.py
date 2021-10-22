@@ -1,70 +1,174 @@
-import requests
-import time
+import os
+import logging
+import configparser
+import sys
+import smtplib
+import csv
+
+from datetime import datetime
+
 from pycoingecko import CoinGeckoAPI
 
-# global variables
-bot_token = "Insert your Telegram bot token here"
-chat_id = "Insert you Telegram chat ID here"
-time_interval = 3600  # in seconds
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# ------------------------------------------------------------------
+#   Logging Setup
+# ------------------------------------------------------------------
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(message)s')
+
+file_handler = logging.FileHandler("settings\\logs.log", encoding='utf8')
+file_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+
+# ------------------------------------------------------------------
+
+# Config Setup
+config = configparser.RawConfigParser()
+configFilePath = r"settings/config.txt"
+config.read(configFilePath, encoding="utf-8")
+
+# Global Variables
+geckoAPI = CoinGeckoAPI()
 
 
-def get_crypto_price(btcpricelist, ethpricelist, ltcpricelist, xtzpricelist, xmrpricelist):
+def get_coins():
+    """
+        Gets user inputted coins and adds them to a csv file.
 
-    geckoAPI = CoinGeckoAPI()
-    response = geckoAPI.get_price(ids=["bitcoin", "litecoin", "ethereum", "tezos", "monero"], vs_currencies="eur")
-    btcpricelist.append(response["bitcoin"]["eur"])
-    ltcpricelist.append(response["litecoin"]["eur"])
-    ethpricelist.append(response["ethereum"]["eur"])
-    xtzpricelist.append(response["tezos"]["eur"])
-    xmrpricelist.append(response["monero"]["eur"])
-    return btcpricelist, ltcpricelist, ethpricelist, xtzpricelist, xmrpricelist
+        Only gets run on the first run of the program.
+        If the coins.csv file isn't found this function will be run
+        It asks the user to input the names of the coins they want to track, splitting them up by commas
+        It then graps each coin and makes sure that the coin can be found on CoinGecko
+        If not an error is returned
+        Then adds all coins to a csv and writes them to file
+    """
+    
+    print("\nPlease enter the FULL NAME of the coins you want to get the price of (if getting multiple, seperate them with commas):")
+    coins = input().split(",")
+
+    for i in range(len(coins)):
+        coins[i] = coins[i].strip()
+        response = geckoAPI.get_price(ids=coins[i], vs_currencies=config.get("CONFIG", "VS_CURRENCY"))
+        if len(response) == 0:
+            print(coins[i] + " doesn't exist on CoinGecko, please try again!")
+            sys.exit()
+
+    with open("settings/coins.csv", "w") as file:
+        csvwriter = csv.writer(file)
+        csvwriter.writerow(coins)
 
 
-# fn to send_message through telegram
-def send_message(chat_id, msg):
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={chat_id}&text={msg}"
+def get_crypto_price():
+    """
+        Reads the coins and returns the price and 24hr change data back to the main function
 
-    # send the msg
-    requests.get(url)
+        First reads the coins from the coins.csv
+        It gets the price against the defined vs Currency and the 24hr change
+        Adds all the necessary info to a dictionary and returns it to the main function
+        Any errors get added to the log files
+
+        Raises
+        ------
+        TypeError
+            Raised when syntax is wrong in code
+        KeyError
+            Raised when the coin name in the csv is different than the name returned from CoinGecko; happens normally with coins with a space ie. Shiba Inu
+        Exception
+            Just there to catch any extra exceptions that I may have missed
+    """
+    
+    crypto_list = []
+
+    try:
+        with open("settings/coins.csv", "r") as file:
+            reader = csv.reader(file)
+            coins = next(reader)
+
+        for crypto in coins:
+            response = geckoAPI.get_price(ids=crypto, vs_currencies=config.get("CONFIG", "VS_CURRENCY"), include_24hr_change=True,)
+            listings = {
+                "coin": crypto,
+                "price": "{:,}".format(response[crypto.replace(" ", "")][config.get("CONFIG", "VS_CURRENCY").lower()]),
+                "change": round(response[crypto.replace(" ", "")][config.get("CONFIG", "VS_CURRENCY").lower() + "_24h_change"], 2)
+            }
+            crypto_list.append(listings)
+
+        return crypto_list
+    except TypeError as e:
+        logger.error("Type Error: ", e)
+    except KeyError as e:
+        logger.error("Key Error for: ", e)
+    except Exception as e:
+        logger.erorr("General Error: ", e)
 
 
-def format_msg(pricelisting):
-    difflisting = []
-    for i in range(len(pricelisting)):
-        diff = round(pricelisting[i][1] - pricelisting[i][0], 2)
-        difflisting.append(diff)
+#
+def send_email(listings):
+    """
+        Sends an email to the user with the data for each coin
 
-    msg = f'Here is your hourly crypto update:' \
-          f'\nBtc: {pricelisting[0][0]}€ -> {pricelisting[0][1]}€ = {difflisting[0]}€!' \
-          f'\nLtc: {pricelisting[1][0]}€ -> {pricelisting[1][1]}€ = {difflisting[1]}€!' \
-          f'\nEth: {pricelisting[2][0]}€ -> {pricelisting[2][1]}€ = {difflisting[2]}€!' \
-          f'\nXtz: {pricelisting[3][0]}€ -> {pricelisting[3][1]}€ = {difflisting[3]}€!' \
-          f'\nXmr: {pricelisting[4][0]}€ -> {pricelisting[4][1]}€ = {difflisting[4]}€!'
+        Sets up the SMTP connection to the user's email with the details given in config.txt
+        Creates a string called msg
+        Loops through the listings and adds the details to the msg
+        Sends that finished message to the user via email
 
-    return msg
+        Parameters
+        -----------
+        listings : list, required
+            The data for each coin, their price and 24hr change
+
+        Raises
+        ------
+        SMTPResponseException
+            Raised when something goes wrong with the email being sent. Output gets sent to the logger
+    """
+    try:
+        smtp = smtplib.SMTP(config.get('CONFIG', 'SMTP_SERVER'), int(config.get('CONFIG', 'SMTP_PORT')))
+        smtp.ehlo()
+        smtp.starttls()
+
+        smtp.login(config.get('CONFIG', 'SMTP_SENDING_EMAIL'), config.get('CONFIG', 'SMTP_PASSWORD'))
+        
+        msg = "Here is your crypto updates:"
+
+        for i in range(len(listings)):
+            msg += f'\n{listings[i]["coin"]} ->\tPrice:\t{listings[i]["price"]} {config.get("CONFIG", "VS_CURRENCY")}\tChange:\t{listings[i]["change"]}%'
+
+        msg = MIMEMultipart()
+        msg["Subject"] = "Crypto Price Updates"
+        msg.attach(MIMEText(text))
+
+        smtp.sendmail(
+            from_addr=config.get('CONFIG', 'SMTP_SENDING_EMAIL'),
+            to_addrs=config.get('CONFIG', 'SMTP_RECEIVING_EMAIL'),
+            msg=msg.as_string()
+        )
+        smtp.quit()
+
+        logger.info("Email sent ")
+    except smtplib.SMTPResponseExceptionas as e:
+        logger.error(e.smtp_error)
+        logger.error("Email not sent for " + datetime.now().strftime("%d-%m-%y, %H:%M"))
+
 
 
 def main():
-    btcpricelist = []
-    ethpricelist = []
-    ltcpricelist = []
-    xtzpricelist = []
-    xmrpricelist = []
+    if not os.path.isfile("settings/coins.csv"):
+        get_coins()
 
     # infinite loop
     while True:
-        pricelistings = get_crypto_price(btcpricelist, ethpricelist, ltcpricelist, xtzpricelist, xmrpricelist)
+        pricelistings = get_crypto_price()
 
-        # send last 6 btc price
-        if len(pricelistings[0]) >= 2:
-            msg = format_msg(pricelistings)
-            send_message(chat_id=chat_id, msg=msg)
-            # empty the price_list
-            for i in range(len(pricelistings)):
-                del pricelistings[i][0]
+        send_email(pricelistings)
 
-        # fetch the price for every dash minutes
-        time.sleep(time_interval)
+        time.sleep(config.get("CONFIG", "TIME_INTERVAL"))
 
 
 if __name__ == '__main__':
