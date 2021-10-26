@@ -124,7 +124,7 @@ def send_email(listings):
 
         Raises
         ------
-        SMTPResponseException
+        Exception
             Raised when something goes wrong with the email being sent. Output gets sent to the logger
     """
     try:
