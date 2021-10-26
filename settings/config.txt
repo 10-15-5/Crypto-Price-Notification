@@ -3,13 +3,14 @@
 # CoinGecko API Keys
 # API Keys can go here if you have them, but for what I am doing, they're not needed
 
-# Email SMTP Settings
+# SMTP Settings for Sending Email
 SMTP_SENDING_EMAIL = 
-SMTP_RECEIVING_EMAIL = 
 SMTP_PASSWORD = 
 SMTP_SERVER = 
 SMTP_PORT = 
 
+# Setting for Receiving Email
+SMTP_RECEIVING_EMAIL = 
 
 # Currency
 VS_CURRENCY = EUR

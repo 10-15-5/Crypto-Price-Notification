@@ -4,8 +4,7 @@ import configparser
 import sys
 import smtplib
 import csv
-
-from datetime import datetime
+import time
 
 from pycoingecko import CoinGeckoAPI
 
@@ -19,7 +18,8 @@ from email.mime.multipart import MIMEMultipart
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-formatter = logging.Formatter('%(message)s')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(lineno)d - %(message)s',
+                              datefmt='%d-%m-%y %H:%M:%S')
 
 file_handler = logging.FileHandler("settings\\logs.log", encoding='utf8')
 file_handler.setFormatter(formatter)
@@ -108,7 +108,6 @@ def get_crypto_price():
         logger.erorr("General Error: ", e)
 
 
-#
 def send_email(listings):
     """
         Sends an email to the user with the data for each coin
@@ -129,32 +128,32 @@ def send_email(listings):
             Raised when something goes wrong with the email being sent. Output gets sent to the logger
     """
     try:
+        email_content = "Here is your crypto updates:"
+        for i in range(len(listings)):
+            # msg += f'\n{listings[i]["coin"]} ->\tPrice:\t{listings[i]["price"]} {config.get("CONFIG", "VS_CURRENCY")}\tChange:\t{listings[i]["change"]}%'
+            email_content += "\n" + listings[i]["coin"].upper() + " - >Price: " + str(listings[i]["price"]) + config.get("CONFIG", "VS_CURRENCY") + "-> Change: " + str(listings[i]["change"]) + "%"
+        
         smtp = smtplib.SMTP(config.get('CONFIG', 'SMTP_SERVER'), int(config.get('CONFIG', 'SMTP_PORT')))
         smtp.ehlo()
         smtp.starttls()
 
         smtp.login(config.get('CONFIG', 'SMTP_SENDING_EMAIL'), config.get('CONFIG', 'SMTP_PASSWORD'))
-        
-        msg = "Here is your crypto updates:"
 
-        for i in range(len(listings)):
-            msg += f'\n{listings[i]["coin"]} ->\tPrice:\t{listings[i]["price"]} {config.get("CONFIG", "VS_CURRENCY")}\tChange:\t{listings[i]["change"]}%'
-
-        msg = MIMEMultipart()
-        msg["Subject"] = "Crypto Price Updates"
-        msg.attach(MIMEText(text))
+        message = MIMEMultipart()
+        message["Subject"] = "Crypto Price Updates"
+        message.attach(MIMEText(email_content))
 
         smtp.sendmail(
             from_addr=config.get('CONFIG', 'SMTP_SENDING_EMAIL'),
             to_addrs=config.get('CONFIG', 'SMTP_RECEIVING_EMAIL'),
-            msg=msg.as_string()
+            msg=message.as_string()
         )
-        smtp.quit()
 
-        logger.info("Email sent ")
-    except smtplib.SMTPResponseExceptionas as e:
-        logger.error(e.smtp_error)
-        logger.error("Email not sent for " + datetime.now().strftime("%d-%m-%y, %H:%M"))
+        logger.info("Email successfully sent to " + config.get('CONFIG', 'SMTP_RECEIVING_EMAIL'))
+    except Exception as e:
+        logger.error(e)
+    finally:
+         smtp.quit()
 
 
 
